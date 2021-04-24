@@ -16,7 +16,7 @@ def save_setup(setup):
 try:
     setup = toml.load("settings.toml")
 except:
-    setup = {'discord': {'token': '', 'prefix': '$'}, 'azure': {'key': '', 'region': '', 'voice': ''}}
+    setup = {'discord': {'token': '', 'prefix': '$'}, 'azure': {'key': '', 'region': '', 'voice': '', 'max_chars': 280}}
     save_setup(setup)
     print("Fill settings.toml and try again")
     quit(1)
@@ -86,7 +86,7 @@ async def setvoice(ctx, new_voice):
 @bot.command(name="say", help="Reads whatever text is passed out loud")
 async def say(ctx, *, arg: str):
     cleaned = re.sub('(<:.*:\d*>)', '', arg).strip()
-    if len(cleaned) <= 280:
+    if setup["azure"]["max_chars"] == 0 or len(cleaned) <= setup["azure"]["max_chars"]:
         synthesizer = await setup_azure()
         synthesizer.speak_text_async(cleaned).get()
         vc = await connect_vc(ctx)
@@ -95,7 +95,7 @@ async def say(ctx, *, arg: str):
             time.sleep(0.5)
         os.truncate("./latest.wav", 0)
     else:
-        await ctx.send("The message is longer than 280 characters")
+        await ctx.send(f"The message is longer than {setup['azure']['max_chars']} characters")
     
 @bot.command(name="ping", help="Shows the bot latency")
 async def ping(ctx):
