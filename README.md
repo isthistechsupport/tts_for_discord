@@ -18,7 +18,7 @@ We recommend using a Python virtual environment like [virtualenv](https://virtua
 
 2. Run ```python3 start.py```. This will create the settings file and exit.
 
-3. Fill in the blanks on ```settings.toml```. The discord.token, azure.key and azure.region fields are mandatory. A list of options for azure.voice can be found [here](https://docs.microsoft.com/en-us/azure/cognitive-services/speech-service/language-support#text-to-speech), or you can leave it blank or fill "default" to autodetect the language and use voices accordingly (be aware that language autodetection is spotty at best and will make for hilariously bad results often)
+3. Fill in the blanks on ```settings.toml```. The discord.token, azure.key and azure.region fields are mandatory. A list of options for azure.voice can be found [here](https://docs.microsoft.com/en-us/azure/cognitive-services/speech-service/language-support#text-to-speech), or you can leave it blank or fill "default" to autodetect the language and use voices accordingly (be aware that language autodetection is spotty at best and will make for hilariously bad results very often). You can see an in depth explanation of the settings below.
 
 4. Run ```python3 start.py``` again. If everything goes well, you'll see a message saying "Logged in as \<username>"
 
@@ -30,9 +30,25 @@ We recommend using a Python virtual environment like [virtualenv](https://virtua
 
 You can find the command guide by typing $help on any text channel, but the main command you'll want is $say \<text>, which will prompt the bot to connect to the voice channel you're on, and read out loud the text you've given it.
 
-To avoid spammers, trolls or grifters, the bot will only talk to people already connected to VC, it'll try to prune emojis and trim whitespace from the prompts, and it won't read out anything longer than 280 characters (measured after pruning and trimming, this limit can be changed under settings.toml\azure.max_chars, use 0 to remove the limit).
+To avoid spammers, trolls or grifters, the bot will only talk to people already connected to VC, it'll try to prune emojis and trim whitespace from the prompts, and it won't read out anything longer than 280 characters (measured after pruning and trimming). Although most of these anti-grifting safeguards can be turned off in the settings below.
 
-**IMPORTANT:** Please mind Azure currently provides 5M free characters per month for normal voices, or 500k free characters for Neural voices, after which it'll start charging your account. **I very highly recommend keeping the default character limit or setting up your own to avoid being rate limited or getting unexpected charges on your account**
+### Settings
+
+- Discord Token: This is the Discord Bot token that allows the bot to connect to a Discord account
+
+- Discord Prefix: The prefix that indicates a command. Default is $
+
+- Discord Ignore Case: This setting controls whether the bot is case insensitive when recognizing commands (e.g. whether ´´´$say´´´ and ´´´$Say´´´ are considered the same)
+
+- Discord Ignore Disconnected: This setting controls whether the bot will respond to $say commands from users who aren't connected to a voice channel. To avoid spammers and grifters changing it on the go, it can only be changed from the settings.toml file and requires restarting the bot.
+
+- Azure Key: This is the Azure Speech Key that allows the bot to connect to the Azure Speech SDK
+
+- Azure Region: This is the Azure Speech Region that allows the bot to connect to the Azure Speech SDK
+
+- Azure Voice: This is the voice that the bot will use to read text out loud. A full list of possible voices is available [here](https://docs.microsoft.com/en-us/azure/cognitive-services/speech-service/language-support#text-to-speech)
+
+- Azure Max Chars: This is the max text length that the bot will read out. You can change it to any value, or 0 to disable it. **IMPORTANT:** Please mind Azure currently provides 5M free characters per month for normal voices, or 500k free characters for Neural voices, after which it'll start charging your account. **I very highly recommend keeping the default character limit or setting up your own to avoid being rate limited or getting unexpected charges on your account**
 
 ## Support
 

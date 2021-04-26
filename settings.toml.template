@@ -1,0 +1,11 @@
+[discord]
+token = ""
+prefix = "$"
+ignore_case = true
+ignore_dc = true
+
+[azure]
+key = ""
+region = ""
+voice = ""
+max_chars = 280
