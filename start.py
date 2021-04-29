@@ -2,7 +2,6 @@ from azure.cognitiveservices.speech.languageconfig import AutoDetectSourceLangua
 from azure.cognitiveservices.speech import SpeechConfig, SpeechSynthesizer
 from azure.cognitiveservices.speech.audio import AudioOutputConfig
 import discord
-from discord import file
 from discord.ext import commands
 import toml
 import time
@@ -65,9 +64,66 @@ async def setprefix(ctx, new_case :bool):
     save_setup(setup)
 
 
-@bot.command(name="listvoices", help=f"Gets the possible voices")
-async def setvoice(ctx, language):
-    await ctx.send(f"Current voice is {setup['azure']['voice']}")
+async def setup_azure(filename):
+    """
+    Returns an Azure Speech Synthesizer pointing to the given filename
+    """
+    auto_detect_source_language_config = None
+    speech_config = SpeechConfig(subscription=setup['azure']['key'], region=setup['azure']['region'])
+    if setup['azure']['voice'] == '' or setup['azure']['voice'] == 'default':
+        auto_detect_source_language_config = AutoDetectSourceLanguageConfig(None, None)
+    else:
+        speech_config.speech_synthesis_voice_name = setup['azure']['voice']
+    if filename == None:
+        audio_config = AudioOutputConfig(use_default_speaker= True)
+    else:
+        audio_config = AudioOutputConfig(filename=filename)
+    synthesizer = SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config, auto_detect_source_language_config=auto_detect_source_language_config)
+    return synthesizer
+
+
+async def speak(ctx, text, filename, delete):
+    """
+    Reads the given text out loud
+    """
+    try:
+        vc = await connect_vc(ctx)
+        if text != None:
+            synthesizer = await setup_azure(filename)
+            synthesizer.speak_text_async(text).get()
+        if vc == None and (not setup['discord']['ignore_dc']):
+            audio = discord.File(filename)
+            await ctx.send(content="Here's the audio", file=audio)
+        else:
+            vc.play(discord.FFmpegPCMAudio(source=filename))
+            while vc.is_playing():
+                time.sleep(0.5)
+    except RuntimeError as ex:
+        await ctx.send(f"{ctx.author.mention} is not connected to voice")
+    finally:
+        if delete:
+            try:
+                os.remove(filename)
+            except:
+                pass
+
+
+@bot.command(name="listvoices", help=f"Gets the possible voices for the given language")
+async def setvoice(ctx, language: str):
+    locale = language
+    if language.lower() == "español" or language.lower() == "spanish":
+        locale = 'es-ES'
+        await ctx.send(f"Converting language \"{language}\" to locale {locale}")
+    if language.lower() == "english" or language.lower() == "ingles" or language.lower() == "inglés":
+        locale = 'en-US'
+        await ctx.send(f"Converting language \"{language}\" to locale {locale}")
+    if language.lower() == "portuguese" or language.lower() == "portugués" or language.lower() == "portugues" or language.lower() == "português":
+        locale = 'pt-BR'
+        await ctx.send(f"Converting language \"{language}\" to locale {locale}")
+    synth = await setup_azure(None)
+    voices = synth.get_voices_async(locale=locale).get()
+    voice_names = list(map(lambda voice: voice.short_name, voices.voices))
+    await ctx.send(f"The available voices for locale {locale} are {', '.join(voice_names)}. Type $setvoice <voice name> to use them")
 
 
 @bot.command(name="getvoice", help=f"Gets the current bot voice")
@@ -114,46 +170,7 @@ async def disconnect_vc(ctx):
         await ctx.send(f"Already disconnected.")
 
 
-async def setup_azure(filename):
-    """
-    Returns an Azure Speech Synthesizer pointing to the given filename
-    """
-    auto_detect_source_language_config = None
-    speech_config = SpeechConfig(subscription=setup['azure']['key'], region=setup['azure']['region'])
-    if setup['azure']['voice'] == '' or setup['azure']['voice'] == 'default':
-        auto_detect_source_language_config = AutoDetectSourceLanguageConfig(None, None)
-    else:
-        speech_config.speech_synthesis_voice_name = setup['azure']['voice']
-    audio_config = AudioOutputConfig(filename=filename)
-    synthesizer = SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config, auto_detect_source_language_config=auto_detect_source_language_config)
-    return synthesizer
-
-
-async def speak(ctx, text, filename, delete):
-    """
-    Reads the given text out loud
-    """
-    try:
-        vc = await connect_vc(ctx)
-        if text != None:
-            synthesizer = await setup_azure(filename)
-            synthesizer.speak_text_async(text).get()
-        if vc == None and (not setup['discord']['ignore_dc']):
-            audio = discord.File(filename)
-            await ctx.send(content="Here's the audio", file=audio)
-        else:
-            await vc.play(discord.FFmpegPCMAudio(source=filename))
-    except RuntimeError as ex:
-        await ctx.send(f"{ctx.author.mention} is not connected to voice")
-    finally:
-        if delete:
-            try:
-                os.remove(filename)
-            except:
-                pass
-
-
-@bot.command(name="say", help="Reads whatever text is passed out loud")
+@bot.command(name="say", aliases=['make'], help="Reads whatever text is passed out loud")
 async def say(ctx, *, arg: str):
     filename = f"{uuid.uuid4().hex}.wav"
     cleaned = re.sub('(<:.*:\d*>)', '', arg).strip()
