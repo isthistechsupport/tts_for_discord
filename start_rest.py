@@ -234,7 +234,7 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    if str(message.author) == "Chismander#8766" and (str(message.content)).count(":(") > 0:
+    if str(message.author) == "Chismander#8766" and ((str(message.content)).count(":(") > 0 or (str(message.content)).count(":c") > 0):
         await message.channel.send("Típico de Piscis")
     await bot.process_commands(message)
 
