@@ -1,3 +1,4 @@
+from typing import Text
 import requests
 import discord
 from xml.sax.saxutils import quoteattr, escape
@@ -56,15 +57,14 @@ def speak_text(text: str, filename: str):
     """
     Downloads a recording of the given text with the given filename
     """
-    fetch_rec_url = f"https://{setup['azure']['region']}.tts.speech.microsoft.com/cognitiveservices/v1"
+    url = f"https://{setup['azure']['region']}.tts.speech.microsoft.com/cognitiveservices/v1"
+    payload = f"<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-US\"><voice name=\"{setup['azure']['voice']}\">{text}</voice></speak>"
     headers = {
-        'Authorization': f"Bearer: {get_token()}",
         'Content-Type': 'application/ssml+xml',
-        'X-Microsoft-OutputFormat': 'audio-16khz-128kbitrate-mono-mp3',
-        'User-Agent': 'tts_for_discord_bot'
+        'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
+        'Authorization': f'Bearer {get_token()}'
     }
-    payload = f"<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-US\"><voice name=\"{escape(quoteattr(setup['azure']['voice']))}\">{escape(quoteattr(text))}</voice></speak>"
-    response = requests.post(fetch_rec_url, headers=headers, data=payload)
+    response = requests.request("POST", url, headers=headers, data=payload)
     with open(filename, "wb") as file:
         for chunk in response.iter_content(chunk_size=1024): 
             if chunk: # filter out keep-alive new chunks
@@ -77,7 +77,7 @@ def get_voices(language):
     """
     fetch_voices_url = f"https://{setup['azure']['region']}.tts.speech.microsoft.com/cognitiveservices/voices/list"
     headers = {
-        'Authorization': f"Bearer: {get_token()}",
+        'Authorization': f"Bearer {get_token()}",
         'User-Agent': 'tts_for_discord_bot'
     }
     response = requests.get(fetch_voices_url, headers=headers)
