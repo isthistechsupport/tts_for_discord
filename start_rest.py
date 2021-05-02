@@ -204,7 +204,7 @@ async def disconnect_vc(ctx):
 
 @bot.command(name="say", aliases=['make'], help="Reads whatever text is passed out loud")
 async def say(ctx, *, arg: str):
-    filename = f"{uuid.uuid4().hex}.wav"
+    filename = f"{uuid.uuid4().hex}.mp3"
     cleaned = re.sub('(<:.*:\d*>)', '', arg).strip()
     if setup['azure']['max_chars'] == 0 or len(cleaned) <= setup['azure']['max_chars']:
         await speak(ctx, cleaned, filename, True)
