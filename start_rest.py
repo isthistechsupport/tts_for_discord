@@ -3,6 +3,7 @@ import requests
 import discord
 from xml.sax.saxutils import quoteattr, escape
 from discord.ext import commands
+import demoji
 import datetime
 import json
 import toml
@@ -32,6 +33,10 @@ except:
     save_setup(setup)
     print("Fill settings.toml and try again")
     quit(1)
+
+
+if demoji.last_downloaded_timestamp() == None:
+    demoji.download_codes()
 
 
 azure_token = {'token': '', 'expiration_date': datetime.datetime(1970,1,1)}
@@ -207,7 +212,8 @@ async def disconnect_vc(ctx):
 @bot.command(name="say", aliases=['make'], help="Reads whatever text is passed out loud")
 async def say(ctx, *, arg: str):
     filename = f"{uuid.uuid4().hex}.wav"
-    cleaned = re.sub('(<:.*:\d*>)', '', arg).strip()
+    pruned = re.sub('(<:.*:\d*>)', '', arg).strip()
+    cleaned = demoji.replace(pruned, "")
     if setup['azure']['max_chars'] == 0 or len(cleaned) <= setup['azure']['max_chars']:
         await speak(ctx, cleaned, filename, True)
     else:
