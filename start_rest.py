@@ -60,7 +60,7 @@ def speak_text(text: str, filename: str):
     headers = {
         'Authorization': f"Bearer: {get_token()}",
         'Content-Type': 'application/ssml+xml',
-        'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
+        'X-Microsoft-OutputFormat': 'audio-16khz-128kbitrate-mono-mp3',
         'User-Agent': 'tts_for_discord_bot'
     }
     payload = f"<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-US\"><voice name=\"{escape(quoteattr(setup['azure']['voice']))}\">{escape(quoteattr(text))}</voice></speak>"
@@ -204,7 +204,7 @@ async def disconnect_vc(ctx):
 
 @bot.command(name="say", aliases=['make'], help="Reads whatever text is passed out loud")
 async def say(ctx, *, arg: str):
-    filename = f"{uuid.uuid4().hex}.mp3"
+    filename = f"{uuid.uuid4().hex}.wav"
     cleaned = re.sub('(<:.*:\d*>)', '', arg).strip()
     if setup['azure']['max_chars'] == 0 or len(cleaned) <= setup['azure']['max_chars']:
         await speak(ctx, cleaned, filename, True)
