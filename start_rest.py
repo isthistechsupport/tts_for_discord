@@ -1,8 +1,9 @@
-from azure.cognitiveservices.speech.languageconfig import AutoDetectSourceLanguageConfig
-from azure.cognitiveservices.speech import SpeechConfig, SpeechSynthesizer
-from azure.cognitiveservices.speech.audio import AudioOutputConfig
+import requests
 import discord
+from xml.sax.saxutils import quoteattr, escape
 from discord.ext import commands
+import datetime
+import json
 import toml
 import time
 import uuid
@@ -30,6 +31,58 @@ except:
     save_setup(setup)
     print("Fill settings.toml and try again")
     quit(1)
+
+
+azure_token = {'token': '', 'expiration_date': datetime.datetime(1970,1,1)}
+
+
+def get_token():
+    """
+    Gets the Bearer token to connect to Azure
+    """
+    if datetime.datetime.now() > azure_token['expiration_date']:
+        fetch_token_url = f"https://{setup['azure']['region']}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
+        headers = {
+            'Ocp-Apim-Subscription-Key': setup['azure']['key'],
+            'User-Agent': 'tts_for_discord_bot'
+        }
+        response = requests.post(fetch_token_url, headers=headers)
+        azure_token['token'] = str(response.text)
+        azure_token['expiration_date'] = datetime.datetime.now() + datetime.timedelta(minutes=9)
+    return azure_token['token']
+
+
+def speak_text(text: str, filename: str):
+    """
+    Downloads a recording of the given text with the given filename
+    """
+    fetch_rec_url = f"https://{setup['azure']['region']}.tts.speech.microsoft.com/cognitiveservices/v1"
+    headers = {
+        'Authorization': f"Bearer: {get_token()}",
+        'Content-Type': 'application/ssml+xml',
+        'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
+        'User-Agent': 'tts_for_discord_bot'
+    }
+    payload = f"<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-US\"><voice name=\"{escape(quoteattr(setup['azure']['voice']))}\">{escape(quoteattr(text))}</voice></speak>"
+    response = requests.post(fetch_rec_url, headers=headers, data=payload)
+    with open(filename, "wb") as file:
+        file.write(response.content)
+
+
+def get_voices(language):
+    """
+    Downloads a recording of the given text with the given filename
+    """
+    fetch_voices_url = f"https://{setup['azure']['region']}.tts.speech.microsoft.com/cognitiveservices/voices/list"
+    headers = {
+        'Authorization': f"Bearer: {get_token()}",
+        'User-Agent': 'tts_for_discord_bot'
+    }
+    response = requests.get(fetch_voices_url, headers=headers)
+    voices = json.loads(str(response.text))
+    voices_filtered = filter(lambda voice: voice['Locale'].startswith(language), voices)
+    voice_names = map(lambda voice: voice['ShortName'], voices_filtered)
+    return voice_names
 
 
 bot = commands.Bot(command_prefix=setup['discord']['prefix'])
@@ -64,24 +117,6 @@ async def setprefix(ctx, new_case :bool):
     save_setup(setup)
 
 
-async def setup_azure(filename):
-    """
-    Returns an Azure Speech Synthesizer pointing to the given filename
-    """
-    auto_detect_source_language_config = None
-    speech_config = SpeechConfig(subscription=setup['azure']['key'], region=setup['azure']['region'])
-    if setup['azure']['voice'] == '' or setup['azure']['voice'] == 'default':
-        auto_detect_source_language_config = AutoDetectSourceLanguageConfig(None, None)
-    else:
-        speech_config.speech_synthesis_voice_name = setup['azure']['voice']
-    if filename == None:
-        audio_config = AudioOutputConfig(use_default_speaker= True)
-    else:
-        audio_config = AudioOutputConfig(filename=filename)
-    synthesizer = SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config, auto_detect_source_language_config=auto_detect_source_language_config)
-    return synthesizer
-
-
 async def speak(ctx, text, filename, delete):
     """
     Reads the given text out loud
@@ -89,8 +124,7 @@ async def speak(ctx, text, filename, delete):
     try:
         vc = await connect_vc(ctx)
         if text != None:
-            synthesizer = await setup_azure(filename)
-            synthesizer.speak_text_async(text).get()
+            speak_text(text, filename)
         if vc == None and (not setup['discord']['ignore_dc']):
             audio = discord.File(filename)
             await ctx.send(content="Here's the audio", file=audio)
@@ -112,17 +146,15 @@ async def speak(ctx, text, filename, delete):
 async def listvoices(ctx, language: str):
     locale = language
     if language.lower() == "español" or language.lower() == "spanish":
-        locale = 'es-ES'
+        locale = 'es'
         await ctx.send(f"Converting language \"{language}\" to locale {locale}")
     if language.lower() == "english" or language.lower() == "ingles" or language.lower() == "inglés":
-        locale = 'en-US'
+        locale = 'en'
         await ctx.send(f"Converting language \"{language}\" to locale {locale}")
     if language.lower() == "portuguese" or language.lower() == "portugués" or language.lower() == "portugues" or language.lower() == "português":
-        locale = 'pt-BR'
+        locale = 'pt'
         await ctx.send(f"Converting language \"{language}\" to locale {locale}")
-    synth = await setup_azure(None)
-    voices = synth.get_voices_async(locale=locale).get()
-    voice_names = list(map(lambda voice: voice.short_name, voices.voices))
+    voice_names = get_voices(locale)
     await ctx.send(f"The available voices for locale {locale} are {', '.join(voice_names)}. Type $setvoice <voice name> to use them")
 
 
