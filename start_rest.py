@@ -66,7 +66,9 @@ def speak_text(text: str, filename: str):
     payload = f"<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-US\"><voice name=\"{escape(quoteattr(setup['azure']['voice']))}\">{escape(quoteattr(text))}</voice></speak>"
     response = requests.post(fetch_rec_url, headers=headers, data=payload)
     with open(filename, "wb") as file:
-        file.write(response.content)
+        for chunk in response.iter_content(chunk_size=1024): 
+            if chunk: # filter out keep-alive new chunks
+                file.write(chunk)
 
 
 def get_voices(language):
