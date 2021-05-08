@@ -3,7 +3,7 @@ import requests
 import discord
 from xml.sax.saxutils import quoteattr, escape
 from discord.ext import commands
-import demoji
+import emoji
 import datetime
 import json
 import toml
@@ -22,6 +22,12 @@ def save_setup(setup):
     f.close()
 
 
+def replace_emoji(string, replace='', language='en', ):
+    """Replace unicode emoji in a customizable string.
+    """
+    return re.sub(u'\ufe0f', '', (emoji.get_emoji_regexp(language).sub(replace, string)))
+
+
 # Tries to load the settings, otherwise creates a new settings.toml and prompts the user to fill it
 try:
     setup = toml.load("settings.toml")
@@ -33,10 +39,6 @@ except:
     save_setup(setup)
     print("Fill settings.toml and try again")
     quit(1)
-
-
-if demoji.last_downloaded_timestamp() == None:
-    demoji.download_codes()
 
 
 azure_token = {'token': '', 'expiration_date': datetime.datetime(1970,1,1)}
@@ -213,7 +215,7 @@ async def disconnect_vc(ctx):
 async def say(ctx, *, arg: str):
     filename = f"{uuid.uuid4().hex}.wav"
     pruned = re.sub('(<:.*:\d*>)', '', arg).strip()
-    cleaned = demoji.replace(pruned, "")
+    cleaned = replace_emoji(pruned, "")
     if setup['azure']['max_chars'] == 0 or len(cleaned) <= setup['azure']['max_chars']:
         await speak(ctx, cleaned, filename, True)
     else:
