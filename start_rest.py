@@ -65,7 +65,7 @@ def speak_text(text: str, filename: str):
     Downloads a recording of the given text with the given filename
     """
     url = f"https://{setup['azure']['region']}.tts.speech.microsoft.com/cognitiveservices/v1"
-    payload = f"<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-US\"><voice name=\"{setup['azure']['voice']}\">{text}</voice></speak>"
+    payload = f"<speak version=\"1.0\" xmlns=\"http://www.w3.org/2001/10/synthesis\" xml:lang=\"en-US\"><voice name=\"{setup['azure']['voice']}\">{text}</voice></speak>".encode('utf-8')
     headers = {
         'Content-Type': 'application/ssml+xml',
         'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3',
@@ -215,7 +215,7 @@ async def disconnect_vc(ctx):
 async def say(ctx, *, arg: str):
     filename = f"{uuid.uuid4().hex}.wav"
     pruned = re.sub('(<:.*:\d*>)', '', arg).strip()
-    cleaned = replace_emoji(pruned, "")
+    cleaned = replace_emoji(pruned)
     if setup['azure']['max_chars'] == 0 or len(cleaned) <= setup['azure']['max_chars']:
         await speak(ctx, cleaned, filename, True)
     else:
