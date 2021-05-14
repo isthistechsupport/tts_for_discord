@@ -242,6 +242,15 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
+    if not message.author.bot:
+        for file in message.attachments:
+            try:
+                await file.save(file.filename)
+            except:
+                try:
+                    await file.save(file.filename, use_cached=True)
+                except:
+                    print(f"File couldn't be saved")
     if str(message.author) == "Chismander#8766" and ((str(message.content)).count(":(") > 0 or (str(message.content)).count(":c") > 0):
         await message.channel.send("Típico de Piscis")
     await bot.process_commands(message)
