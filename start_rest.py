@@ -245,11 +245,11 @@ async def on_message(message):
     if not message.author.bot:
         for file in message.attachments:
             try:
-                await file.save(file.filename)
+                await file.save(f"{str(datetime.datetime.now()).replace(' ', '_')}_{file.filename}")
                 print(f"Saved file as {file.filename}")
             except:
                 try:
-                    await file.save(file.filename, use_cached=True)
+                    await file.save(f"{str(datetime.datetime.now()).replace(' ', '_')}_cached_{file.filename}", use_cached=True)
                     print(f"Saved file as {file.filename}")
                 except:
                     print(f"File couldn't be saved")
