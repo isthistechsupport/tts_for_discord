@@ -1,6 +1,8 @@
 *.mp3
 *.wav
 *.toml
+!*.template.toml
 *.bkp
 *.csv
 .python-version
+__pycache__/

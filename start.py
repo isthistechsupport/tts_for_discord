@@ -1,13 +1,16 @@
-from azure.cognitiveservices.speech.languageconfig import AutoDetectSourceLanguageConfig
-from azure.cognitiveservices.speech import SpeechConfig, SpeechSynthesizer
-from azure.cognitiveservices.speech.audio import AudioOutputConfig
+import sqlalchemy
+from dbschema import connect_db
+from speech import get_voices, speak_text
 import discord
 from discord.ext import commands
+import emoji
+import datetime
 import toml
 import time
 import uuid
 import os
 import re
+import reddit
 
 
 def save_setup(setup):
@@ -19,14 +22,23 @@ def save_setup(setup):
     f.close()
 
 
+def replace_emoji(string, replace='', language='en', ):
+    """
+    Replace unicode emoji in a customizable string.
+    """
+    return re.sub(u'\ufe0f', '', (emoji.get_emoji_regexp(language).sub(replace, string)))
+
+
 # Tries to load the settings, otherwise creates a new settings.toml and prompts the user to fill it
 try:
     setup = toml.load("settings.toml")
     assert setup['discord']['token'] != "", "A Discord Token is required"
     assert setup['azure']['key'] != "", "An Azure Speech Key is required"
     assert setup['azure']['region'] != "", "An Azure Speech Region is required"
+    assert setup['reddit']['id'] != "", "A Reddit client ID is required"
+    assert setup['reddit']['secret'] != "", "A Reddit client secret is required"
 except:
-    setup = toml.load("settings.toml.template")
+    setup = toml.load("settings.template.toml")
     save_setup(setup)
     print("Fill settings.toml and try again")
     quit(1)
@@ -34,6 +46,10 @@ except:
 
 bot = commands.Bot(command_prefix=setup['discord']['prefix'])
 bot.case_insensitive = setup['discord']['ignore_case']
+if setup['cache']['file'] == "":
+    setup['cache']['file'] = "history.db"
+    save_setup(setup)
+engine = connect_db(setup['cache']['file'])
 
 
 @bot.command(name="getprefix", help="Gets the bot prefix")
@@ -64,24 +80,6 @@ async def setprefix(ctx, new_case :bool):
     save_setup(setup)
 
 
-async def setup_azure(filename):
-    """
-    Returns an Azure Speech Synthesizer pointing to the given filename
-    """
-    auto_detect_source_language_config = None
-    speech_config = SpeechConfig(subscription=setup['azure']['key'], region=setup['azure']['region'])
-    if setup['azure']['voice'] == '' or setup['azure']['voice'] == 'default':
-        auto_detect_source_language_config = AutoDetectSourceLanguageConfig(None, None)
-    else:
-        speech_config.speech_synthesis_voice_name = setup['azure']['voice']
-    if filename == None:
-        audio_config = AudioOutputConfig(use_default_speaker= True)
-    else:
-        audio_config = AudioOutputConfig(filename=filename)
-    synthesizer = SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config, auto_detect_source_language_config=auto_detect_source_language_config)
-    return synthesizer
-
-
 async def speak(ctx, text, filename, delete):
     """
     Reads the given text out loud
@@ -89,8 +87,7 @@ async def speak(ctx, text, filename, delete):
     try:
         vc = await connect_vc(ctx)
         if text != None:
-            synthesizer = await setup_azure(filename)
-            synthesizer.speak_text_async(text).get()
+            speak_text(text, filename, setup)
         if vc == None and (not setup['discord']['ignore_dc']):
             audio = discord.File(filename)
             await ctx.send(content="Here's the audio", file=audio)
@@ -112,17 +109,15 @@ async def speak(ctx, text, filename, delete):
 async def listvoices(ctx, language: str):
     locale = language
     if language.lower() == "español" or language.lower() == "spanish":
-        locale = 'es-ES'
+        locale = 'es'
         await ctx.send(f"Converting language \"{language}\" to locale {locale}")
     if language.lower() == "english" or language.lower() == "ingles" or language.lower() == "inglés":
-        locale = 'en-US'
+        locale = 'en'
         await ctx.send(f"Converting language \"{language}\" to locale {locale}")
     if language.lower() == "portuguese" or language.lower() == "portugués" or language.lower() == "portugues" or language.lower() == "português":
-        locale = 'pt-BR'
+        locale = 'pt'
         await ctx.send(f"Converting language \"{language}\" to locale {locale}")
-    synth = await setup_azure(None)
-    voices = synth.get_voices_async(locale=locale).get()
-    voice_names = list(map(lambda voice: voice.short_name, voices.voices))
+    voice_names = get_voices(locale, setup)
     await ctx.send(f"The available voices for locale {locale} are {', '.join(voice_names)}. Type $setvoice <voice name> to use them")
 
 
@@ -170,12 +165,12 @@ async def disconnect_vc(ctx):
         await ctx.send(f"Already disconnected.")
 
 
-@bot.command(name="say", aliases=['make'], help="Reads whatever text is passed out loud")
-async def say(ctx, *, arg: str):
+@bot.command(name="say", aliases=["make"], help="Reads whatever text is passed out loud")
+async def say(ctx, *, text: str):
     filename = f"{uuid.uuid4().hex}.wav"
-    cleaned = re.sub('(<:.*:\d*>)', '', arg).strip()
-    if setup['azure']['max_chars'] == 0 or len(cleaned) <= setup['azure']['max_chars']:
-        await speak(ctx, cleaned, filename, True)
+    cleaned_text = replace_emoji(re.sub('(<:.*:\d*>)', '', text).strip())
+    if setup['azure']['max_chars'] == 0 or len(cleaned_text) <= setup['azure']['max_chars']:
+        await speak(ctx, cleaned_text, filename, True)
     else:
         await ctx.send(f"The message is longer than {setup['azure']['max_chars']} characters")
 
@@ -193,6 +188,11 @@ async def ping(ctx):
     await ctx.send(f"My ping is {ping}ms")
 
 
+@bot.command(name="post", help="Gets a post from a subreddit")
+async def post(ctx, subreddit, dupe: bool = False):
+    await ctx.send(f"https://redd.it/{reddit.get_post(subreddit, str(ctx.guild), ctx.guild.id, str(ctx.channel), ctx.channel.id, str(ctx.author), ctx.author.id, dupe, engine, setup).id}")
+
+
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
@@ -200,7 +200,18 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    if str(message.author) == "Chismander#8766" and (str(message.content)).count(":(") > 0:
+    if not message.author.bot:
+        for file in message.attachments:
+            try:
+                await file.save(f"{str(datetime.datetime.now()).replace(' ', '_')}_{file.filename}")
+                print(f"Saved file as {file.filename}")
+            except:
+                try:
+                    await file.save(f"{str(datetime.datetime.now()).replace(' ', '_')}_cached_{file.filename}", use_cached=True)
+                    print(f"Saved file as {file.filename}")
+                except:
+                    print(f"File couldn't be saved")
+    if str(message.author) == "Chismander#8766" and ((str(message.content)).count(":(") > 0 or (str(message.content)).count(":c") > 0):
         await message.channel.send("Típico de Piscis")
     await bot.process_commands(message)
 

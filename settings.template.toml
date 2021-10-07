@@ -9,3 +9,10 @@ key = ""
 region = ""
 voice = ""
 max_chars = 280
+
+[reddit]
+id = ""
+secret = ""
+
+[cache]
+file = ""
